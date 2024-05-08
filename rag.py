@@ -76,14 +76,15 @@ class ChatCSV:
         # print(self.model.invoke("What is the capital of France ?"))
         # Initialize the RecursiveCharacterTextSplitter with specific chunk settings.
         # Your tone should be professional and informative
-        self.prompt = ChatPromptTemplate.from_template(
-            """
-            <s> [INST]You are a knowledgeable chatbot, here to help with questions of the user. Your tone should be professional and informative. [/INST] </s> 
-            [INST] Human Question: {question} 
-            Context: {context}
-            Previous conversation: {chat_history}
-            Answer: [/INST]
-            """
+        # Initialize the RecursiveCharacterTextSplitter with specific chunk settings.
+        # Your tone should be professional and informative
+        self.prompt = ChatPromptTemplate.from_messages(
+            messages=[
+                SystemMessagePromptTemplate.from_template("You are a knowledgeable chatbot, here to help with questions of the user. Your tone should be professional and informative."),
+                MessagesPlaceholder(variable_name="chat_history"),
+                HumanMessagePromptTemplate.from_template("{question}"),
+                # ("context", "{context}")
+            ]
         )
 
         self.memory = ConversationBufferMemory(
