@@ -47,12 +47,12 @@ class ChatCSV:
     temp = os.getenv("TEMPERATURE")
     
     CONNECTION_STRING = PGVector.connection_string_from_db_params(
-        driver=os.environ.get("PGVECTOR_DRIVER", "psycopg2"),
-        host=os.environ.get("PGVECTOR_HOST", "localhost"),
-        port=int(os.environ.get("PGVECTOR_PORT", "5432")),
-        database=os.environ.get("PGVECTOR_DATABASE", "postgres"),
-        user=os.environ.get("PGVECTOR_USER", "postgres"),
-        password=os.environ.get("PGVECTOR_PASSWORD", "postgres"),
+        driver=os.getenv("PGVECTOR_DRIVER"),
+        host=os.getenv("PGVECTOR_HOST"),
+        port=int(os.getenvt("PGVECTOR_PORT")),
+        database=os.getenv("PGVECTOR_DATABASE"),
+        user=os.getenv("PGVECTOR_USER"),
+        password=os.getenv("PGVECTOR_PASSWORD"),
     )
 
     def __init__(self):
@@ -138,7 +138,7 @@ class ChatCSV:
             self.db = PGVector.from_documents(
                 embedding=embeddings,
                 documents=all_splits,
-                collection_name="ragechat",
+                collection_name="rag-nvidia-chat",
                 connection_string=self.CONNECTION_STRING,
                 pre_delete_collection=False,
             )
