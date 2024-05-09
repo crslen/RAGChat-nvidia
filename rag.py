@@ -48,7 +48,7 @@ class ChatCSV:
     CONNECTION_STRING = PGVector.connection_string_from_db_params(
         driver=os.getenv("PGVECTOR_DRIVER"),
         host=os.getenv("PGVECTOR_HOST"),
-        port=int(os.getenvt("PGVECTOR_PORT")),
+        port=int(os.getenv("PGVECTOR_PORT")),
         database=os.getenv("PGVECTOR_DATABASE"),
         user=os.getenv("PGVECTOR_USER"),
         password=os.getenv("PGVECTOR_PASSWORD"),
