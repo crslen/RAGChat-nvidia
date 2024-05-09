@@ -2,7 +2,6 @@ from operator import itemgetter
 
 from langchain_community.vectorstores.pgvector import PGVector
 from langchain_community.embeddings import FastEmbedEmbeddings
-# from langchain_openai import ChatOpenAI
 from langchain_community.llms import VLLMOpenAI
 from langchain.schema.output_parser import StrOutputParser
 from langchain_community.document_loaders import WebBaseLoader
@@ -73,9 +72,6 @@ class ChatCSV:
             temperature=self.temp,
             model_kwargs={"stop": ["."]},
         )
-        # print(self.model.invoke("What is the capital of France ?"))
-        # Initialize the RecursiveCharacterTextSplitter with specific chunk settings.
-        # Your tone should be professional and informative
         # Initialize the RecursiveCharacterTextSplitter with specific chunk settings.
         # Your tone should be professional and informative
         self.prompt = ChatPromptTemplate.from_messages(
@@ -83,7 +79,6 @@ class ChatCSV:
                 SystemMessagePromptTemplate.from_template("You are a knowledgeable chatbot, here to help with questions of the user. Your tone should be professional and informative."),
                 MessagesPlaceholder(variable_name="chat_history"),
                 HumanMessagePromptTemplate.from_template("{question}"),
-                # ("context", "{context}")
             ]
         )
 
@@ -186,10 +181,8 @@ class ChatCSV:
         # load memory for history
         self.memory.load_memory_variables({})
         response = self.chain.invoke(query)
-        # response = self.model.invoke(query)
         print(response)
         query = {"question": query}
-        # self.memory.save_context(query, {"answer": response["answer"]})
         return response
 
     def clear(self):
