@@ -4,7 +4,7 @@ FROM postgres:latest
 RUN apt-get update && apt-get install -y \
     build-essential \
     git \
-    postgresql-server-dev-all \
+    postgresql-server-dev-16 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /tmp
