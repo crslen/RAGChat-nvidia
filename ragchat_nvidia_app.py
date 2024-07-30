@@ -3,8 +3,16 @@ from rag import ChatCSV
 import re
 import tempfile
 import os
+import dotenv
 
-st.set_page_config(page_title="🤖💬 RAG Chat NVIDIA")
+#from dotenv import load_dotenv
+
+dotenv_file = dotenv.find_dotenv()
+dotenv.load_dotenv()
+
+app_name = os.getenv("APP_NAME")
+
+st.set_page_config(page_title=app_name)
 st.session_state["thinking_spinner"] = st.empty()
 
 def load_index():
@@ -14,9 +22,7 @@ def load_index():
             st.write(load)
 
 def clear_index():
-    st.session_state["assistant"].clear()
-    with st.chat_message("assistant", avatar="./images/ragechatbot.png"):
-        st.write("Index cleared")
+    st.session_state["assistant"].check_kb(st.session_state["kb"])
 
 def use_regex(input_text):
     x = re.findall(r"'http[^']*'", str(input_text))
@@ -40,16 +46,10 @@ def process_input():
     if st.session_state["user_input"] and len(st.session_state["user_input"].strip()) > 0:
         # Extract and clean the user input.
         user_text = st.session_state["user_input"].strip()
-        agent_text = st.session_state["assistant"].ask(user_text)
-        # sources = use_regex(agent_text)
-        # sources = list(dict.fromkeys(sources))
-        # source = ""
-        # for s in sources:
-        #     source += s + "\n\n"
-        # if type(agent_text) is dict:
-        #     return agent_text["answer"] + "\n\nSources:\n\n" + source.replace("'","")
-        # else:
-        return agent_text["answer"]
+        kb = st.session_state["kb"]
+        prompt = st.session_state["prompt_input"]
+        agent_text = st.session_state["assistant"].ask(user_text, kb, prompt)
+        return agent_text
 
 def read_and_save_url():
     # Clear the state of the question-answering assistant.
@@ -57,6 +57,10 @@ def read_and_save_url():
 
     #Ingest weblinks from session state
     st.session_state["assistant"].ingest(st.session_state["web_input"], False, "web")
+
+def run_init():
+    temp = st.session_state["temp"]
+    dotenv.set_key(dotenv_file, "TEMPERATURE", str(temp))
 
 def read_and_save_file():
     """
@@ -82,8 +86,11 @@ def read_and_save_file():
             file_path = tf.name
 
         # Display a spinner while ingesting the file.
-        #with st.session_state["ingestion_spinner"], st.spinner(f"Ingesting {file.name}"):
-        st.session_state["assistant"].ingest(file_path, False, "pdf")
+        file_ext = file.name
+        if file_ext.endswith(".pdf"):
+            st.session_state["assistant"].ingest(file_path, False, "pdf")
+        elif file_ext.endswith(".csv"):
+            st.session_state["assistant"].ingest(file_path, False, "csv")
         os.remove(file_path)
 
 def page():
@@ -96,32 +103,47 @@ def page():
 
     Note: Streamlit (st) functions are used for interacting with the Streamlit app.
     """
+    dotenv.load_dotenv(override=True)
+    llm = os.getenv("LLM")
+    temp = os.getenv("TEMPERATURE")
+
+    default_prompt = """You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know."""
+    temp_help = """In most language models, the temperature range is typically between 0 and 1, where:
+                    0: generates very predictable and similar text to the input (high confidence)
+                    1: generates highly creative and novel text, but with a higher chance of errors (low confidence)
+                For example, a temperature of 0.5 is a common default value that balances creativity and accuracy."""
 
     with st.sidebar:
-        st.title('🤖💬 RAGChat NVIDIA')
-        st.markdown("Click Load Index to use previous data or add new links to save in RAG")
-        col1, col2 = st.sidebar.columns(2)
-        col1.button("Load Index",key="load_index", on_click=load_index)
-        col2.button("Clear Index",key="clear_index", on_click=clear_index)
+        st.title(app_name)
+        config = st.toggle("Show Configuration")
+        if config:
+            st.write(llm)  
+            st.text_area("Prompt", default_prompt, key="prompt_input")
+            col1, col2 = st.sidebar.columns(2)
+            col1.button("Load Index",key="load_index", on_click=load_index)
+            if col2.button("Clear chat history", key="clear_history", on_click=clear_index):
+                st.session_state["assistant"].clear()
+                st.session_state.trace_link = None
+                st.session_state.run_id = None
+            st.slider("Temperature", 0.0, 1.0, float(temp), 0.1, key="temp", help=temp_help, on_change=run_init)
+        else:
+            st.session_state["prompt_input"] = default_prompt
+               
         st.text_area("Web Link(s)", key="web_input", on_change=read_and_save_url)
         st.file_uploader(
-            "Upload PDF",
-            type=["pdf"],
+            "Upload PDF or CSV",
+            type=["pdf","csv"],
             key="file_uploader",
             on_change=read_and_save_file,
             label_visibility="collapsed",
             accept_multiple_files=True,
         )
-        if st.sidebar.button("Clear chat history", key="clear_history"):
-            print("Clearing message history")
-            st.session_state["assistant"].memory.clear()
-            st.session_state.trace_link = None
-            st.session_state.run_id = None
+        st.checkbox("Use Knowledgebase", key="kb", value=False, on_change=clear_index)
 
     # Store LLM generated responses
     if "messages" not in st.session_state.keys():
         st.session_state["assistant"] = ChatCSV()
-        load_index()
+        # load_index()
         st.session_state.messages = []
         st.session_state.messages = [{"role": "assistant", "content": "How may I help you?"}]
 

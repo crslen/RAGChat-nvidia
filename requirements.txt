@@ -2,9 +2,11 @@ streamlit>=1.26.0
 jq
 langchain
 langchain_openai
+langchain-community
+langchain-postgres
 fastembed
 pgvector
-psycopg2-binary
+psycopg[binary]
 pypdf
 python-dotenv
 bs4

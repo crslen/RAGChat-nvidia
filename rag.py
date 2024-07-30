@@ -1,20 +1,23 @@
-from operator import itemgetter
-
-from langchain_community.vectorstores.pgvector import PGVector
-from langchain_community.embeddings import FastEmbedEmbeddings
-from langchain_community.llms import VLLMOpenAI
+from langchain.chains import create_history_aware_retriever, create_retrieval_chain
+from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain_community.chat_message_histories import ChatMessageHistory
+from langchain_core.chat_history import BaseChatMessageHistory
+from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_postgres import PGVector
+from langchain_postgres.vectorstores import PGVector
+from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
+from langchain_openai import ChatOpenAI
 from langchain.schema.output_parser import StrOutputParser
+from langchain_core.runnables import Runnable
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import CSVLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.schema.runnable import RunnableLambda, RunnablePassthrough, RunnableParallel
-from langchain.memory import ConversationBufferMemory
 from langchain.prompts import (
     ChatPromptTemplate,
     MessagesPlaceholder,
-    SystemMessagePromptTemplate,
-    HumanMessagePromptTemplate,
 )
+import secrets
 from os.path import os
 from dotenv import load_dotenv
 
@@ -24,98 +27,71 @@ load_dotenv()
 def format_docs(docs):
     return "\n\n".join(doc.page_content for doc in docs)
 
-# Define the metadata extraction function.
-def metadata_func(record: dict, metadata: dict) -> dict:
-
-    # metadata["summary"] = record.get("feedbackText")
-    metadata["timestamp"] = record.get("createdDate")
-    metadata["totalRevenue"] = record.get("totalRevenue")
-    metadata["productNames"] = record.get("productNames")
-
-    return metadata
+def make_token():
+    """
+    Creates a cryptographically-secure, URL-safe string
+    """
+    return secrets.token_urlsafe(16)  
 
 class ChatCSV:
     vector_store = None
     retriever = None
+    history_aware_retriever = None
     memory = None
+    model = None
     chain = None
     db = None
+    sessionid = make_token()
     llm = os.getenv("LLM")
-    vllmhost = os.getenv("VLLMHOST")
+    api_key = os.getenv("API_KEY")
+    NIMhost = os.getenv("NIMHOST")
     token = os.getenv("MAXTOKEN")
     temp = os.getenv("TEMPERATURE")
-    
-    CONNECTION_STRING = PGVector.connection_string_from_db_params(
-        driver=os.getenv("PGVECTOR_DRIVER"),
-        host=os.getenv("PGVECTOR_HOST"),
-        port=int(os.getenv("PGVECTOR_PORT")),
-        database=os.getenv("PGVECTOR_DATABASE"),
-        user=os.getenv("PGVECTOR_USER"),
-        password=os.getenv("PGVECTOR_PASSWORD"),
-    )
+    collection_name = os.getenv("COLLECTION_NAME")
+    CONNECTION_STRING = os.getenv("PGVECTOR_CONNECTION")
+    store = {}
 
     def __init__(self):
         """
         Initializes the question-answering system with default configurations.
 
         This constructor sets up the following components:
-        - A ChatOllama model for generating responses ('neural-chat').
+        - A ChatOpenAI model for generating responses ('neural-chat').
         - A RecursiveCharacterTextSplitter for splitting text into chunks.
         - A PromptTemplate for constructing prompts with placeholders for question and context.
         """
-
-        self.model = VLLMOpenAI(
-            openai_api_key="EMPTY",
-            openai_api_base=self.vllmhost,
-            model_name=self.llm,
+        
+        self.model = ChatOpenAI(
+            model=self.llm,
+            openai_api_key=self.api_key,
+            openai_api_base=self.NIMhost,
             max_tokens=self.token,
             temperature=self.temp,
-            model_kwargs={"stop": ["."]},
-        )
-        # Initialize the RecursiveCharacterTextSplitter with specific chunk settings.
-        # Your tone should be professional and informative
-        self.prompt = ChatPromptTemplate.from_messages(
-            messages=[
-                SystemMessagePromptTemplate.from_template("You are a knowledgeable chatbot, here to help with questions of the user. Your tone should be professional and informative."),
-                MessagesPlaceholder(variable_name="chat_history"),
-                HumanMessagePromptTemplate.from_template("{question}"),
-            ]
         )
 
-        self.memory = ConversationBufferMemory(
-            memory_key="chat_history", input_key="question", output_key="answer",return_messages=True)
+    def load_model(self, model_llm: str):
+        self.model = None
+        self.__init__()
 
     def ingest(self, ingest_path: str, index: bool, type: str):
         '''
-        Ingests data from a CSV file containing resumes, process the data, and set up the
+        Ingests data from a web url or pdf file containing and set up the
         components for further analysis.
-
-        Parameters:
-        - csv_file_path (str): The file path to the CSV file.
-
-        Usage:
-        obj.ingest("/path/to/data.csv")
-
-        This function uses a CSVLoader to load the data from the specified CSV file.
-
-        Args:
-        - file.path (str): The path to the CSV file.
-        - encoding (str): The character encoding of the file (default is 'utf-8').
-        - source_column (str): The column in the CSV containing the data (default is "Resume").
-        '''        
+        '''      
         embeddings=FastEmbedEmbeddings()
         if index:
             print("loading indexes")
             vector_store = PGVector(
-                collection_name="rag-nvidia-chat",
-                connection_string=self.CONNECTION_STRING,
-                embedding_function=embeddings,
+                collection_name=self.collection_name,
+                connection=self.CONNECTION_STRING,
+                embeddings=embeddings,
+                use_jsonb=True,
             )
             self.retriever = vector_store.as_retriever(
                 search_type="similarity_score_threshold",
                 search_kwargs={
                     "k": 3,
-                    "score_threshold": 0.7,
+                    "score_threshold": float(self.temp),
                 },
             )
         else:
@@ -125,6 +101,8 @@ class ChatCSV:
                 loader = PyPDFLoader(
                     file_path=ingest_path,
                 )
+            elif type == "csv":
+                loader = CSVLoader(file_path=ingest_path)
             # loads the data
             data = loader.load()
             # splits the documents into chunks
@@ -133,8 +111,9 @@ class ChatCSV:
             self.db = PGVector.from_documents(
                 embedding=embeddings,
                 documents=all_splits,
-                collection_name="rag-nvidia-chat",
-                connection_string=self.CONNECTION_STRING,
+                collection_name=self.collection_name,
+                connection=self.CONNECTION_STRING,
+                use_jsonb=True,
                 pre_delete_collection=False,
             )
             # sets up the retriever
@@ -142,30 +121,11 @@ class ChatCSV:
                 search_type="similarity_score_threshold",
                 search_kwargs={
                     "k": 3,
-                    "score_threshold": 0.2,
+                    "score_threshold": float(self.temp),
                 },
             )
 
-        # Define a processing chain for handling a question-answer scenario.
-        # The chain consists of the following components:
-        # 1. "context" from the retriever
-        # 2. A passthrough for the "question"
-        # 3. Processing with the "prompt"
-        # 4. Interaction with the "model"
-        # 5. Parsing the output using the "StrOutputParser"
-
-        rag_chain_from_docs = (
-            RunnablePassthrough.assign(
-                context=(lambda x: format_docs(x["context"]))
-            )
-                | self.prompt
-                | self.model
-                | StrOutputParser())
-        self.chain = RunnableParallel(
-            {"context": self.retriever, "question": RunnablePassthrough(), "chat_history": RunnableLambda(self.memory.load_memory_variables) | itemgetter("chat_history")}
-        ).assign(answer=rag_chain_from_docs)
-
-    def ask(self, query: str):
+    def ask(self, query: str, kb, prompt):
         """
         Asks a question using the configured processing chain.
 
@@ -177,13 +137,81 @@ class ChatCSV:
         If the processing chain is not set up (empty), a message is returned
         prompting to add a CSV document first.
         """
-        
-        # load memory for history
-        self.memory.load_memory_variables({})
-        response = self.chain.invoke(query)
+
+        qa_system_prompt = prompt
+
+        if kb:
+            contextualize_q_system_prompt = """Given a chat history and the latest user question \
+                which might reference context in the chat history, formulate a standalone question \
+                which can be understood without the chat history. Do NOT answer the question, \
+                just reformulate it if needed and otherwise return it as is."""
+            contextualize_q_prompt = ChatPromptTemplate.from_messages(
+                [
+                    ("system", contextualize_q_system_prompt),
+                    MessagesPlaceholder(variable_name="chat_history"),
+                    ("human", "{input}"),
+                ]
+            )
+            # print(contextualize_q_prompt)
+            self.history_aware_retriever = create_history_aware_retriever(
+                self.model, self.retriever, contextualize_q_prompt
+            )
+  
+            qa_system_prompt = qa_system_prompt + """\\nUse the following pieces of retrieved context to answer the question.\\n\\n{context}"""
+            self.prompt = ChatPromptTemplate.from_messages(
+                [
+                    ("system", qa_system_prompt),
+                    MessagesPlaceholder(variable_name="chat_history"),
+                    ("human", "{input}"),
+                ]
+            )
+
+            question_answer_chain = create_stuff_documents_chain(self.model, self.prompt)
+            runnable = create_retrieval_chain(self.history_aware_retriever, question_answer_chain)
+        else:
+            self.prompt = ChatPromptTemplate.from_messages(
+                [
+                    ("system", qa_system_prompt),
+                    MessagesPlaceholder(variable_name="chat_history"),
+                    ("human", "{input}"),
+                ]
+            )
+            runnable: Runnable = self.prompt | self.model
+
+        ### Statefully manage chat history ###
+
+        def get_session_history(session_id: str) -> BaseChatMessageHistory:
+            if session_id not in self.store:
+                self.store[session_id] = ChatMessageHistory()
+            return self.store[session_id]
+
+        # if not kb:
+        #     runnable: Runnable = self.prompt | self.model
+
+        self.chain = RunnableWithMessageHistory(
+            runnable,
+            get_session_history,
+            input_messages_key="input",
+            history_messages_key="chat_history",
+            output_messages_key="answer" if kb else None,
+        )
+
+        response = self.chain.invoke({"input": query},
+                                         config={
+                                        "configurable": {"session_id": self.sessionid}
+                                        },
+                                    )
         print(response)
-        query = {"question": query}
-        return response
+
+        if kb:
+            return response["answer"]
+        else:
+            return response.content
+
+    def check_kb(self, kb: bool):
+        self.clear()
+        if kb:
+            self.ingest(self, index=True, type="")
 
     def clear(self):
         """
@@ -192,11 +220,11 @@ class ChatCSV:
         This method resets the vector store, retriever, and processing chain to None,
         effectively clearing the existing configuration.
         """
-        # Set the vector store to None.
-        self.vector_store = None
-
-        # Set the retriever to None.
-        self.retriever = None
-
-        # Set the processing chain to None.
+        print("clearing the components in the question-answering system.")
         self.chain = None
+        self.vector_store = None
+        self.retriever = None
+        # self.history_aware_retriever = None
+        self.memory = None
+        self.db = None
+        self.store = {}
