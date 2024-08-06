@@ -106,6 +106,7 @@ def page():
     dotenv.load_dotenv(override=True)
     llm = os.getenv("LLM")
     temp = os.getenv("TEMPERATURE")
+    top_p = os.getenv("TOP_P")
 
     default_prompt = """You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know."""
     temp_help = """In most language models, the temperature range is typically between 0 and 1, where:

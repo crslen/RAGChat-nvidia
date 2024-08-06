@@ -6,7 +6,8 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_postgres import PGVector
 from langchain_postgres.vectorstores import PGVector
 from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
-from langchain_openai import ChatOpenAI
+# from langchain_openai import ChatOpenAI
+from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain.schema.output_parser import StrOutputParser
 from langchain_core.runnables import Runnable
 from langchain_community.document_loaders import WebBaseLoader
@@ -60,14 +61,12 @@ class ChatCSV:
         - A RecursiveCharacterTextSplitter for splitting text into chunks.
         - A PromptTemplate for constructing prompts with placeholders for question and context.
         """
-        
-        self.model = ChatOpenAI(
-            model=self.llm,
-            openai_api_key=self.api_key,
-            openai_api_base=self.NIMhost,
-            max_tokens=self.token,
+
+        self.model = ChatNVIDIA(model=self.llm,
             temperature=self.temp,
-        )
+            top_p=self.top_p,
+            max_tokens=self.token,
+            base_url=f"http://{self.NIMhost}/v1")
 
     def load_model(self, model_llm: str):
         self.model = None
@@ -176,7 +175,7 @@ class ChatCSV:
                     ("human", "{input}"),
                 ]
             )
-            runnable: Runnable = self.prompt | self.model
+            runnable: Runnable = self.prompt | self.model | StrOutputParser()
 
         ### Statefully manage chat history ###
 
@@ -196,17 +195,20 @@ class ChatCSV:
             output_messages_key="answer" if kb else None,
         )
 
+        response = None
+        phrase = "Conversation roles must alternate user/assistant/user/assistant/..."
         response = self.chain.invoke({"input": query},
                                          config={
                                         "configurable": {"session_id": self.sessionid}
                                         },
                                     )
         print(response)
+        mode_resp = response.replace(phrase, "")
 
         if kb:
             return response["answer"]
         else:
-            return response.content
+            return mod_resp
 
     def check_kb(self, kb: bool):
         self.clear()
