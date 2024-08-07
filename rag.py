@@ -5,8 +5,9 @@ from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_postgres import PGVector
 from langchain_postgres.vectorstores import PGVector
-from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
+# from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
 # from langchain_openai import ChatOpenAI
+from nemo_embed import NemoEmbeddings
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain.schema.output_parser import StrOutputParser
 from langchain_core.runnables import Runnable
@@ -48,6 +49,7 @@ class ChatCSV:
     NIMhost = os.getenv("NIMHOST")
     token = os.getenv("MAXTOKEN")
     temp = os.getenv("TEMPERATURE")
+    top_p = os.getenv("TOP_P")
     collection_name = os.getenv("COLLECTION_NAME")
     CONNECTION_STRING = os.getenv("PGVECTOR_CONNECTION")
     store = {}
@@ -77,7 +79,10 @@ class ChatCSV:
         Ingests data from a web url or pdf file containing and set up the
         components for further analysis.
         '''      
-        embeddings=FastEmbedEmbeddings()
+        embeddings=NemoEmbeddings(
+            server_url=f"htpp://localhost:9080/v1/embeddings",
+            model_name="NV-Embed-QA",
+        )
         if index:
             print("loading indexes")
             vector_store = PGVector(
@@ -148,7 +153,7 @@ class ChatCSV:
                 [
                     ("system", contextualize_q_system_prompt),
                     MessagesPlaceholder(variable_name="chat_history"),
-                    ("human", "{input}"),
+                    ("user", "{input}"),
                 ]
             )
             # print(contextualize_q_prompt)
@@ -161,7 +166,7 @@ class ChatCSV:
                 [
                     ("system", qa_system_prompt),
                     MessagesPlaceholder(variable_name="chat_history"),
-                    ("human", "{input}"),
+                    ("user", "{input}"),
                 ]
             )
 
@@ -172,7 +177,7 @@ class ChatCSV:
                 [
                     ("system", qa_system_prompt),
                     MessagesPlaceholder(variable_name="chat_history"),
-                    ("human", "{input}"),
+                    ("user", "{input}"),
                 ]
             )
             runnable: Runnable = self.prompt | self.model | StrOutputParser()
@@ -203,7 +208,7 @@ class ChatCSV:
                                         },
                                     )
         print(response)
-        mode_resp = response.replace(phrase, "")
+        mod_resp = response.replace(phrase, "")
 
         if kb:
             return response["answer"]
