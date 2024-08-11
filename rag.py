@@ -14,7 +14,8 @@ from langchain_core.runnables import Runnable
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.document_loaders import CSVLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+# from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.text_splitter import SentenceTransformersTokenTextSplitter
 from langchain.prompts import (
     ChatPromptTemplate,
     MessagesPlaceholder,
@@ -25,6 +26,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+TEXT_SPLITTER_EMBEDDING_MODEL = "intfloat/e5-large-v2"
 
 def format_docs(docs):
     return "\n\n".join(doc.page_content for doc in docs)
@@ -110,15 +112,21 @@ class ChatCSV:
             # loads the data
             data = loader.load()
             # splits the documents into chunks
-            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1024, chunk_overlap=100)
+            # text_splitter = RecursiveCharacterTextSplitter(chunk_size=1024, chunk_overlap=100)
+            embedding_model_name = TEXT_SPLITTER_EMBEDDING_MODEL
+            text_splitter = SentenceTransformersTokenTextSplitter(
+                        model_name=embedding_model_name,
+                        tokens_per_chunk=510 - 2,
+                        chunk_overlap=200,
+            )
             all_splits = text_splitter.split_documents(data)
             self.db = PGVector.from_documents(
                 embedding=embeddings,
                 documents=all_splits,
                 collection_name=self.collection_name,
                 connection=self.CONNECTION_STRING,
-                use_jsonb=True,
-                pre_delete_collection=False,
+                # use_jsonb=True,
+                # pre_delete_collection=False,
             )
             # sets up the retriever
             self.retriever = self.db.as_retriever(

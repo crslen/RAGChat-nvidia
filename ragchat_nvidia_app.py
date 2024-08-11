@@ -60,7 +60,9 @@ def read_and_save_url():
 
 def run_init():
     temp = st.session_state["temp"]
+    topp = st.session_state["topp"]
     dotenv.set_key(dotenv_file, "TEMPERATURE", str(temp))
+    dotenv.set_key(dotenv_file, "TOP_P", str(topp))
 
 def read_and_save_file():
     """
@@ -127,6 +129,7 @@ def page():
                 st.session_state.trace_link = None
                 st.session_state.run_id = None
             st.slider("Temperature", 0.0, 1.0, float(temp), 0.1, key="temp", help=temp_help, on_change=run_init)
+            st.slider("Top P", 0.0, 1.0, float(temp), 0.1, key="topp", on_change=run_init)
         else:
             st.session_state["prompt_input"] = default_prompt
                
