@@ -4,7 +4,7 @@ langchain
 langchain_openai
 langchain-community
 langchain-postgres
-langchain-nvidia-ai-endpoints==0.2.0
+langchain-nvidia-ai-endpoints
 fastembed
 pgvector
 psycopg[binary]
