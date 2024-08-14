@@ -4,5 +4,5 @@
 /data/example response.txt
 /data/vmc_set_aws_feedback.json
 __pycache__/*
-postgres_data/models
-postgres_data/data
+docker/models
+docker/data
