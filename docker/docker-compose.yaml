@@ -9,8 +9,12 @@ services:
     ports:
       - ${OPEN_WEBUI_PORT-3000}:8080
     environment:
+      - WEBUI_AUTH=False
+      - ENABLE_OLLAMA_API=False
+      - WEBUI_NAME=${APP_NAME}
       - OPENAI_API_BASE_URL=${OPENAI_API_BASE_URL}
       - OPENAI_API_KEY=nokey
+      - WEBUI_SECRET_KEY=Sup3rS3cr3t!
       - OPEN_WEBUI_PORT=${OPEN_WEBUI_PORT}
       - ENABLE_SIGNUP=${ENABLE_SIGNUP}
       - ENABLE_LOGIN_FORM=${ENABLE_LOGIN_FORM}
