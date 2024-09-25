@@ -29,20 +29,20 @@ services:
     extra_hosts:
       - host.docker.internal:host-gateway
     restart: unless-stopped
-  postgres:
-    container_name: postgres
-    build:
-      # context: ./postgres
-      dockerfile: postgres.Dockerfile
-    ports:
-      - "5432:5432"
-    volumes:
-      - ./data/:/var/lib/postgresql/data
-      - ./postgres/vector_extension.sql:/docker-entrypoint-initdb.d/0-vector_extension.sql
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=vector
+  # postgres:
+  #   container_name: postgres
+  #   build:
+  #     # context: ./postgres
+  #     dockerfile: postgres.Dockerfile
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - ./data/:/var/lib/postgresql/data
+  #     - ./postgres/vector_extension.sql:/docker-entrypoint-initdb.d/0-vector_extension.sql
+  #   environment:
+  #     - POSTGRES_USER=postgres
+  #     - POSTGRES_PASSWORD=postgres
+  #     - POSTGRES_DB=vector
   nemollm-embedding:
     container_name: nemo-retriever-embedding-microservice
     image: nvcr.io/ohlfw0olaadg/ea-participants/nemo-retriever-embedding-microservice:24.04
