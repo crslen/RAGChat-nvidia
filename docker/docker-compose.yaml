@@ -1,7 +1,10 @@
 version: "3"
 services:
   open-webui:
-    image: ghcr.io/open-webui/open-webui:main
+    # image: ghcr.io/open-webui/open-webui:main
+    build:
+      context: .
+    dockerfile: Dockerfile
     container_name: open-webui
     volumes:
       - /opt/data/open-webui:/app/backend/data
@@ -18,6 +21,8 @@ services:
       - OPEN_WEBUI_PORT=${OPEN_WEBUI_PORT}
       - ENABLE_SIGNUP=${ENABLE_SIGNUP}
       - ENABLE_LOGIN_FORM=${ENABLE_LOGIN_FORM}
+      - VECTOR_STORE_TYPE=${VECTOR_TYPE}
+      - PGVECTOR_CONNECTION=${PG_CONNECTION_STRING}
       - RAG_EMBEDDING_ENGINE=${RAG_EMBEDDING_ENGINE}
       - RAG_EMBEDDING_MODEL=${RAG_EMBEDDING_MODEL}
       - RAG_OPENAI_API_BASE_URL=${RAG_API_BASE_URL}
@@ -68,4 +73,4 @@ services:
       retries: 3
       start_period: 10m
 volumes:
-  postgres_data:
+  webui_data:
