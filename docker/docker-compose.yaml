@@ -3,8 +3,8 @@ services:
   open-webui:
     # image: ghcr.io/open-webui/open-webui:main
     build:
-      context: .
-    dockerfile: Dockerfile
+      context: open-webui/
+      dockerfile: Dockerfile
     container_name: open-webui
     volumes:
       - /opt/data/open-webui:/app/backend/data
